@@ -214,8 +214,12 @@ Abans d'executar qualsevol arxiu lliurat, el servidor analitza l'arbre sintàcti
 #### 4. Normativa Operativa del Servidor
 
 Per garantir la concurrència i estabilitat de la plataforma per a tots els equips:
-* **Límit de lliuraments:** Cada equip disposa d'un màxim de **10 lliuraments diaris** registrats al Leaderboard.
+* **Límit de lliuraments:** Cada equip disposa d'un màxim de **10 lliuraments per franja horària** (fins a 30 lliuraments en total al llarg del Datathon):
+  1. **Torn 1 (Dissabte diürn):** 10 lliuraments fins a les 21:00h.
+  2. **Torn 2 (Dissabte nit):** 10 lliuraments des de les 21:00h fins a Diumenge a les 08:00h.
+  3. **Torn 3 (Diumenge diürn):** 10 lliuraments des de les 08:00h fins al tancament oficial del repte.
 * **Temps límit d'execució (*Timeout*):** Cada simulació té un temps màxim autoritzat d'**1 minut (60 segons)**. Els processos que superin aquest llindar seran cancel·lats automàticament per seguretat.
 * **Mida màxima d'arxiu:** El fitxer comprimit de tramesa no pot superar els **25 MB**.
-* **Identificació i PIN de seguretat:** En el primer lliurament, cada equip estableix un PIN secret (mínim 4 caràcters). Els lliuraments posteriors sota el mateix nom requeriran aquest PIN per evitar suplantacions d'identitat o esgotament indegut d'intents per part de tercers.
-* **Trameses fallides:** Els intents que no s'executin satisfactòriament per errors de sintaxi o manca de definició de classes a l'arxiu no consumeixen la quota diària de lliuraments.
+* **Identificació i PIN de seguretat:** En el primer lliurament, cada equip estableix un PIN secret (mínim 4 caràcters) i els noms i cognoms dels integrants. Els lliuraments posteriors sota el mateix nom requeriran aquest PIN per evitar suplantacions d'identitat o esgotament indegut d'intents per part de tercers.
+* **Selecció de les 2 millors submissions per al Jurat:** Abans que finalitzi el Datathon, cada equip ha d'escollir des de la plataforma web les seves **2 solucions oficials** que seran les **úniques considerades pel jurat** sobre el Rànquing Privat Secret per decidir els guanyadors. Si un equip no en selecciona cap manualment, el sistema prendrà per defecte les seves dues millors trameses del Rànquing Públic.
+* **Trameses fallides:** Els intents que no s'executin satisfactòriament per errors de sintaxi o manca de definició de classes a l'arxiu no consumeixen la quota d'intents de l'equip.
