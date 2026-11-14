@@ -1,0 +1,3 @@
+data,nom,fitxer,hash,preu_exp,final_score,final_dco2,final_dcost,final_infr,d01_score,d01_dco2,d01_dcost,d01_infr,d08_score,d08_dco2,d08_dcost,d08_infr,d15_score,d15_dco2,d15_dcost,d15_infr,mitjana_score
+2026-11-14 13:58:35,plantilla,starter_kit\agent.py,5816ec8647,0.0,0.0,0.96,2.369,9,0.031,1.008,2.417,7,0.682,0.907,2.155,3,0.0,0.899,2.058,8,0.178
+2026-11-14 14:03:30,v1 regles + clamp corregit,submission,254ad12766,0.0,1.383,0.96,2.369,0,1.431,1.008,2.417,0,1.282,0.907,2.155,0,1.246,0.899,2.058,0,1.336

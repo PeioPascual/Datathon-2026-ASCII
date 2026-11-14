@@ -1,0 +1,23 @@
+# Entorn virtual de Python
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Cache de dades generada per l'avaluador local (es regenera sola)
+local_eval/cache/
+
+# Paquets de lliurament generats (es construeixen a partir de submission/)
+*.zip
+
+# Sistema i editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
