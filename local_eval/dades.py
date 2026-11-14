@@ -10,7 +10,16 @@ import pandas as pd
 
 ARREL = Path(__file__).resolve().parent.parent
 DIR_DADES = ARREL / "data" / "train"
-CACHE = Path(__file__).resolve().parent / "cache" / "campus_hourly.pkl"
+CACHE = Path(__file__).resolve().parent / "cache" / "campus_hourly_v2.pkl"
+
+COLS_BASE = ["load_kw", "pv_kw", "precio_eur_per_kwh", "co2_kg_per_kwh"]
+# Meteorologia (només la fa servir el Mode Difícil): nom intern -> text que identifica la columna
+COLS_METEO = {
+    "irradiancia_wm2": "IRRADIANCIA (W/m2)",
+    "temp_ambient_c": "TEMPERATURA AMBIENTE",
+    "temp_panel_c": "TEMPERATURA PANEL",
+    "vent_ms": "VELOCIDAD VIENTO",
+}
 
 COL_CONTADOR = "Contador - POTENCIA ACTIVA EXPORTADA (kW)"
 # Noms exactes: el filtre "POTENCIA ACTIVA" sense "FASE" de la web també agafa
@@ -40,6 +49,17 @@ def carregar_horari(refrescar: bool = False) -> pd.DataFrame:
         "precio_eur_per_kwh": preu["precio_eur_per_kwh"],
         "co2_kg_per_kwh": co2["co2_kg_per_kwh"],
     }).dropna()
+
+    # Meteorologia: mitjana horària. No elimina cap fila (les hores avaluades són les mateixes
+    # que sense meteo); els forats s'omplen amb l'últim valor conegut.
+    capcalera = pd.read_csv(DIR_DADES / "meteo.csv", nrows=0).columns
+    tria = {nom: next(c for c in capcalera if text in c) for nom, text in COLS_METEO.items()}
+    met = pd.read_csv(DIR_DADES / "meteo.csv", usecols=["Fecha", *tria.values()],
+                      parse_dates=["Fecha"]).set_index("Fecha")
+    met = met.apply(pd.to_numeric, errors="coerce").resample("1h").mean()
+    for nom, col in tria.items():
+        df[nom] = met[col].reindex(df.index).ffill().fillna(0.0)
+    df["irradiancia_wm2"] = df["irradiancia_wm2"].clip(lower=0)
     df.index.name = "Fecha"
 
     CACHE.parent.mkdir(parents=True, exist_ok=True)

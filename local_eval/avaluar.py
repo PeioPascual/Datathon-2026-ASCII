@@ -37,6 +37,7 @@ sys.path.insert(0, str(AQUI))
 from environment import CampusBatteryEnv  # noqa: E402  (simulador oficial)
 from check_submission import check_ast  # noqa: E402  (escàner AST oficial)
 import dades  # noqa: E402
+import modes  # noqa: E402
 
 HORES_TEST = 2016
 TIMEOUT_S = 60.0
@@ -133,13 +134,14 @@ def hash_paquet(origen: Path) -> str:
 # --------------------------------------------------------------------------------------
 # Simulació i mètriques
 # --------------------------------------------------------------------------------------
-def simular(classe, conjunt: pd.DataFrame, preu_exportacio: float):
-    """Una instància nova de l'agent recorre tot el conjunt (com fa el servidor)."""
+def simular(classe, conjunt: pd.DataFrame, preu_exportacio: float, mode: str = "normal"):
+    """Una instància nova de l'agent recorre tot el conjunt (com fa el servidor).
+    'conjunt' ja ha d'estar preparat per al mode (modes.preparar_conjunt)."""
     t0 = time.perf_counter()
     agent = classe()
     t_init = time.perf_counter() - t0
 
-    env = CampusBatteryEnv(conjunt, export_price=preu_exportacio)
+    env = modes.EnvMode(conjunt, mode=mode, export_price=preu_exportacio)
     obs = env.reset()
     done = False
     while not done:
@@ -224,7 +226,10 @@ def desar_historial(fila: dict):
         if set(capcalera) != set(fila):
             # columnes diferents (p.ex. altres plecs): reescriu amb la unió de columnes
             antic = pd.read_csv(FITXER_HISTORIAL)
-            pd.concat([antic, pd.DataFrame([fila])]).to_csv(FITXER_HISTORIAL, index=False)
+            tot = pd.concat([antic, pd.DataFrame([fila])])
+            if "mode" in tot:
+                tot["mode"] = tot["mode"].fillna("normal")  # files anteriors al Mode Difícil
+            tot.to_csv(FITXER_HISTORIAL, index=False)
             return
     with open(FITXER_HISTORIAL, "a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(fila))
@@ -242,6 +247,8 @@ def main():
     ap = argparse.ArgumentParser(description="Avaluador local del repte de la bateria")
     ap.add_argument("agent", help="agent.py, carpeta amb agent.py + models, o submission.zip")
     ap.add_argument("--nom", default="", help="etiqueta per a l'historial")
+    ap.add_argument("--mode", default="normal", choices=list(modes.MODES),
+                    help="normal (2.000 kWh, 24 h de visió) o dificil (6.000 kWh, solar x12, 3 h de visió)")
     ap.add_argument("--plecs", default=",".join(dades.PLECS),
                     help=f"plecs a avaluar, separats per comes ({', '.join(dades.PLECS)})")
     ap.add_argument("--preu-exportacio", type=float, default=0.0,
@@ -261,7 +268,7 @@ def main():
             sys.exit(f"Plec desconegut '{p}'. Opcions: {dades.PLECS}")
 
     df = dades.carregar_horari(refrescar=args.refrescar_dades)
-    print(f"\n=== Avaluació local: {origen.name}  [{hash_paquet(origen)}] ===")
+    print(f"\n=== Avaluació local: {origen.name}  [{hash_paquet(origen)}]  — mode {args.mode.upper()} ===")
 
     cwd = os.getcwd()
     resultats = {}
@@ -280,10 +287,10 @@ def main():
         os.chdir(dir_agent)  # el servidor executa des del directori de l'agent
         try:
             for i, plec in enumerate(plecs):
-                conjunt = dades.conjunt_validacio(df, plec)
+                conjunt = modes.preparar_conjunt(dades.conjunt_validacio(df, plec), args.mode)
                 n_set = conjunt["setmana"].nunique()
                 try:
-                    env, t_init, t_tot = simular(classe, conjunt, args.preu_exportacio)
+                    env, t_init, t_tot = simular(classe, conjunt, args.preu_exportacio, args.mode)
                 except Exception as e:
                     os.chdir(cwd)
                     sys.exit(f"[ERROR] plec '{plec}': {type(e).__name__}: {e}")
@@ -322,7 +329,7 @@ def main():
     print()
 
     if not args.sense_historial:
-        fila = {"data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "nom": args.nom,
+        fila = {"data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "mode": args.mode, "nom": args.nom,
                 "fitxer": str(origen.relative_to(ARREL)) if origen.is_relative_to(ARREL) else str(origen),
                 "hash": hash_paquet(origen), "preu_exp": args.preu_exportacio}
         for plec, r in resultats.items():

@@ -1,4 +1,6 @@
-data,nom,fitxer,hash,preu_exp,final_score,final_dco2,final_dcost,final_infr,d01_score,d01_dco2,d01_dcost,d01_infr,d08_score,d08_dco2,d08_dcost,d08_infr,d15_score,d15_dco2,d15_dcost,d15_infr,mitjana_score
-2026-11-14 13:58:35,plantilla,starter_kit\agent.py,5816ec8647,0.0,0.0,0.96,2.369,9,0.031,1.008,2.417,7,0.682,0.907,2.155,3,0.0,0.899,2.058,8,0.178
-2026-11-14 14:03:30,v1 regles + clamp corregit,submission,254ad12766,0.0,1.383,0.96,2.369,0,1.431,1.008,2.417,0,1.282,0.907,2.155,0,1.246,0.899,2.058,0,1.336
-2026-11-14 16:09:20,v2 LP 24h replan 6h,submission,77fec6d14e,0.0,6.099,5.758,6.896,0,6.085,5.679,7.034,0,5.929,5.644,6.594,0,5.417,5.058,6.255,0,5.883
+data,nom,fitxer,hash,preu_exp,final_score,final_dco2,final_dcost,final_infr,d01_score,d01_dco2,d01_dcost,d01_infr,d08_score,d08_dco2,d08_dcost,d08_infr,d15_score,d15_dco2,d15_dcost,d15_infr,mitjana_score,mode
+2026-11-14 13:58:35,plantilla,starter_kit\agent.py,5816ec8647,0.0,0.0,0.96,2.369,9,0.031,1.008,2.417,7,0.682,0.907,2.155,3,0.0,0.899,2.058,8,0.178,normal
+2026-11-14 14:03:30,v1 regles + clamp corregit,submission,254ad12766,0.0,1.383,0.96,2.369,0,1.431,1.008,2.417,0,1.282,0.907,2.155,0,1.246,0.899,2.058,0,1.336,normal
+2026-11-14 16:09:20,v2 LP 24h replan 6h,submission,77fec6d14e,0.0,6.099,5.758,6.896,0,6.085,5.679,7.034,0,5.929,5.644,6.594,0,5.417,5.058,6.255,0,5.883,normal
+2026-11-14 17:19:34,v2 sense adaptar,submission,77fec6d14e,0.0,0.0,0.0,0.0,0,0.0,0.0,0.0,0,0.0,0.0,0.0,0,0.0,0.0,0.0,0,0.0,dificil
+2026-11-14 17:45:29,dificil,v3 perfils + DP (mode dificil),submission_dificil,4f6b42b3c5,0.0,19.231,17.982,22.146,0,19.665,18.465,22.465,0,18.393,17.367,20.785,0,17.034,16.027,19.384,0,18.581
