@@ -5,3 +5,4 @@ data,nom,fitxer,hash,preu_exp,final_score,final_dco2,final_dcost,final_infr,d01_
 2026-11-14 17:19:34,v2 sense adaptar,submission,77fec6d14e,0.0,0.0,0.0,0.0,0,0.0,0.0,0.0,0,0.0,0.0,0.0,0,0.0,0.0,0.0,0,0.0,dificil
 2026-11-14 17:45:29,dificil,v3 perfils + DP (mode dificil),submission_dificil,4f6b42b3c5,0.0,19.231,17.982,22.146,0,19.665,18.465,22.465,0,18.393,17.367,20.785,0,17.034,16.027,19.384,0,18.581
 2026-11-14 18:49:26,dificil,"v4 model preu+CO2 (XGBoost->numpy), model final",submission_dificil,81c97d95a8,0.0,19.929,18.777,22.617,0,20.334,19.322,22.698,0,19.617,18.831,21.451,0,17.623,16.69,19.802,0,19.376
+2026-11-14 18:57:55,dificil,v5 = v4 + marge 5% + consum mig + excedent +50 (model final),submission_dificil,c20a1f632d,0.0,20.192,19.015,22.939,0,20.484,19.458,22.879,0,19.772,18.958,21.67,0,17.822,16.851,20.09,0,19.568

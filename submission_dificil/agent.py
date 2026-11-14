@@ -1,7 +1,8 @@
 """
 agent.py — Agent per al MODE DIFÍCIL (Repte UPC Sostenible, Datathon 2026).
 
-Versió 4: "predir i després planificar", amb model XGBoost per al preu i el CO2.
+Versió 5: "predir i després planificar", amb model d'arbres (entrenat amb XGBoost) per al
+preu i el CO2, i tres ajustos de prudència (marge en descarregar, consum actual, excedent solar).
   1. Prediu les properes 24 h de preu, CO2, consum del campus i producció solar
      (perfils apresos del train + ajust amb el que s'ha observat les darreres hores).
   2. Busca el pla de càrrega/descàrrega que minimitza el que mesura el Score
@@ -66,12 +67,22 @@ def prediu_arbres(P, X):
 
 
 class BatteryAgent:
-    def __init__(self, horitzo=24, pes_ahir=0.5, marge_descarrega=0.0, valor_final=0.0, pas_kwh=50.0, usa_model=True):
+    def __init__(self, horitzo=24, pes_ahir=0.5, marge_descarrega=0.05, valor_final=0.0, pas_kwh=50.0,
+                 usa_model=True, pes_persistencia=0.5, extra_excedent=50.0, llindar_excedent=200.0):
         self.H = horitzo
         self.pes_ahir = pes_ahir                  # pes de "ahir a la mateixa hora" en la predicció
-        self.marge_descarrega = marge_descarrega  # fracció de prudència en descarregar l'hora actual
+        # Prudència en descarregar l'hora actual: es descarrega com a molt el 95% del consum net
+        # previst. Passar-se regala energia; quedar-se curt només l'ajorna.
+        self.marge_descarrega = marge_descarrega
         self.valor_final = valor_final            # valor de l'energia que queda al final del pla
         self.pas_kwh = pas_kwh                    # resolució de l'energia guardada al planificador
+        # Consum de l'hora actual: barreja de "igual que fa una hora" i "perfil típic ajustat"
+        self.pes_persistencia = pes_persistencia
+        # Prop de l'excedent solar es suposen uns kW més de sobrant: si falla es compra una mica
+        # al migdia (barat); si no es fes, es perdria energia gratuïta.
+        self.extra_excedent = extra_excedent
+        self.llindar_excedent = llindar_excedent
+        self.consum_prev = None
         self.mercat = {}        # hora absoluta -> (co2, preu) reals ja vistos
         self.consum = {}        # hora absoluta -> consum real mesurat (kW)
         self.nivell_consum = 1.0
@@ -174,6 +185,8 @@ class BatteryAgent:
             if k > 0 and ahir is not None and ahir > 1.0 and cahir == ck:
                 pred = 0.5 * ahir + 0.5 * pred
             out[k] = pred
+        if self.consum_prev is not None and n > 0:
+            out[0] = (1 - self.pes_persistencia) * out[0] + self.pes_persistencia * self.consum_prev
         return out
 
     def prediu_solar(self, clau, hora, mes, n):
@@ -259,6 +272,7 @@ class BatteryAgent:
         solar_prev = float(dades.get("ultima_solar_kw", 0.0))
         avaria = consum_prev <= 1.0          # el comptador no envia dades
         h_prev, c_prev = self._hora_futura(hora, dow, -1)
+        self.consum_prev = None if avaria else consum_prev
         if not avaria:
             self.consum[clau - 1] = consum_prev
             self.nivell_consum = consum_prev / PARAMS["perfil_consum"][c_prev][h_prev]
@@ -272,6 +286,8 @@ class BatteryAgent:
         co2_f, preu_f = self.prediu_mercat(clau, hora, dow, mes, n)
         w = 0.7 * co2_f / PARAMS["co2_mitja"] + 0.3 * preu_f / PARAMS["preu_mitja"]
         net = self.prediu_consum(clau, hora, dow, n) - self.prediu_solar(clau, hora, mes, n)
+        if net[0] < self.llindar_excedent:
+            net[0] -= self.extra_excedent
         if avaria:
             net[0] = 0.0                     # el simulador comptarà consum zero aquesta hora
         return self.planificar(w, net, soc, cap, pot)
