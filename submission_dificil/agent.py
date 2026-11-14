@@ -1,7 +1,7 @@
 """
 agent.py — Agent per al MODE DIFÍCIL (Repte UPC Sostenible, Datathon 2026).
 
-Versió 3: "predir i després planificar".
+Versió 4: "predir i després planificar", amb model XGBoost per al preu i el CO2.
   1. Prediu les properes 24 h de preu, CO2, consum del campus i producció solar
      (perfils apresos del train + ajust amb el que s'ha observat les darreres hores).
   2. Busca el pla de càrrega/descàrrega que minimitza el que mesura el Score
@@ -21,11 +21,52 @@ ETA = 0.9 ** 0.5
 EPS = 1e-4
 NS_PER_HORA = 3_600_000_000_000
 
-PARAMS = json.loads((Path(__file__).parent / "parametres.json").read_text(encoding="utf-8"))
+DIR = Path(__file__).parent
+PARAMS = json.loads((DIR / "parametres.json").read_text(encoding="utf-8"))
+NOMS_MERCAT = ("co2", "preu")
+N_FEATS = 19
+
+
+def carrega_models(directori):
+    """Carrega els arbres de decisió de preu i CO2 (entrenats amb XGBoost i desats com a taules
+    de números a model_mercat.npz). Si el fitxer no hi és o falla, retorna {} i l'agent fa servir
+    la recepta senzilla."""
+    models = {}
+    try:
+        fitxer = Path(directori) / "model_mercat.npz"
+        if fitxer.exists():
+            z = np.load(fitxer)
+            for idx, nom in enumerate(NOMS_MERCAT):
+                models[idx] = {k: z[f"{nom}_{k}"] for k in
+                               ("yes", "no", "miss", "feat", "thr", "val", "arrels", "prof", "base")}
+    except Exception:
+        models = {}
+    return models
+
+
+def prediu_arbres(P, X):
+    """Recorre tots els arbres alhora amb numpy: a cada nivell, cada (arbre, fila) baixa a
+    l'esquerra o a la dreta segons el llindar; les fulles apunten a si mateixes."""
+    X = np.asarray(X, np.float32)
+    n, F = X.shape
+    T = len(P["arrels"])
+    node = np.repeat(P["arrels"], n)
+    fila = np.tile(np.arange(n, dtype=np.int64) * F, T)
+    xf = X.ravel()
+    feat, thr, yes, no, miss = P["feat"], P["thr"], P["yes"], P["no"], P["miss"]
+    hi_ha_nan = bool((xf != xf).any())
+    for _ in range(int(P["prof"])):
+        fx = xf[fila + feat[node]]
+        seg = np.where(fx < thr[node], yes[node], no[node])
+        if hi_ha_nan:
+            falta = fx != fx
+            seg[falta] = miss[node][falta]
+        node = seg
+    return float(P["base"]) + P["val"][node].reshape(T, n).sum(axis=0)
 
 
 class BatteryAgent:
-    def __init__(self, horitzo=24, pes_ahir=0.5, marge_descarrega=0.0, valor_final=0.0, pas_kwh=50.0):
+    def __init__(self, horitzo=24, pes_ahir=0.5, marge_descarrega=0.0, valor_final=0.0, pas_kwh=50.0, usa_model=True):
         self.H = horitzo
         self.pes_ahir = pes_ahir                  # pes de "ahir a la mateixa hora" en la predicció
         self.marge_descarrega = marge_descarrega  # fracció de prudència en descarregar l'hora actual
@@ -37,6 +78,7 @@ class BatteryAgent:
         self.claredat = None    # última claredat mesurada (solar real / solar de dia clar)
         self.clau_claredat = None
         self._dp = None
+        self.models = carrega_models(DIR) if usa_model else {}
 
     # ------------------------------------------------------------------ utilitats de temps
     @staticmethod
@@ -50,32 +92,76 @@ class BatteryAgent:
         return h % 24, int(((dow + h // 24) % 7) >= 5)
 
     # ------------------------------------------------------------------ prediccions
+    def feats_mercat(self, idx, clau, hora, dow, mes, n):
+        """Per a una variable de mercat (0=CO2, 1=preu) retorna:
+             nivell : mitjana dels valors reals recents (escala d'avui)
+             recepta: predicció senzilla de cada hora, relativa al nivell (perfil + ahir)
+             X      : variables d'entrada del model per a les hores k >= 3 (una fila per hora)
+        Tot es calcula en relatiu al nivell perquè el model no depengui de l'escala del dia."""
+        perfil = PARAMS["perfil_" + NOMS_MERCAT[idx]][str(mes)]
+        vals, profs = [], []
+        for j in range(-21, 3):
+            v = self.mercat.get(clau + j)
+            if v is not None:
+                hj, cj = self._hora_futura(hora, dow, j)
+                vals.append(v[idx])
+                profs.append(perfil[cj][hj])
+        if not vals:
+            return 1.0, np.ones(n), np.zeros((0, N_FEATS))
+        nivell = sum(vals) / len(vals)
+        niv_perfil = sum(profs) / len(profs)
+        nan = float("nan")
+
+        def rel(k):
+            v = self.mercat.get(clau + k)
+            return v[idx] / nivell if v is not None else nan
+
+        x0, x1, x2 = rel(0), rel(1), rel(2)
+        ahir3 = [rel(j - 24) for j in range(3)]
+        avui3 = [x0, x1, x2]
+        if any(a != a for a in ahir3 + avui3) or sum(ahir3) <= 0:
+            tendencia = nan
+        else:
+            tendencia = sum(avui3) / sum(ahir3)
+        vmin, vmax = min(vals) / nivell, max(vals) / nivell
+        fresca = self.claredat is not None and clau - self.clau_claredat <= 6
+        claredat = self.claredat if fresca else nan
+        _, c0 = self._hora_futura(hora, dow, 0)
+
+        recepta = np.zeros(n)
+        files = []
+        for k in range(n):
+            hk, ck = self._hora_futura(hora, dow, k)
+            prof_rel = perfil[ck][hk] / niv_perfil
+            a1 = rel(k - 24)
+            base = prof_rel if a1 != a1 else self.pes_ahir * a1 + (1 - self.pes_ahir) * prof_rel
+            recepta[k] = base
+            if k >= 3:
+                ang = 2 * np.pi * hk / 24
+                files.append([k, hk, np.sin(ang), np.cos(ang), ck, c0, x0, x1, x2, a1, rel(k - 48),
+                              prof_rel, base, vmin, vmax, tendencia, claredat, len(vals), hora])
+        return nivell, recepta, np.array(files, dtype=float).reshape(-1, N_FEATS)
+
     def prediu_mercat(self, clau, hora, dow, mes, n):
-        """Prediu CO2 i preu de les properes n hores (les 3 primeres ja són reals)."""
-        co2, preu = np.zeros(n), np.zeros(n)
-        for idx, nom, out in ((0, "perfil_co2", co2), (1, "perfil_preu", preu)):
-            perfil = PARAMS[nom][str(mes)]
-            # Nivell d'avui: valors reals recents dividits pel perfil típic de les mateixes hores
-            num = den = 0.0
-            for j in range(-21, 3):
-                v = self.mercat.get(clau + j)
-                if v is not None:
-                    hj, cj = self._hora_futura(hora, dow, j)
-                    num += v[idx]
-                    den += perfil[cj][hj]
-            nivell = num / den if den > 0 else 1.0
+        """Prediu CO2 i preu de les properes n hores. Les hores ja conegudes es deixen tal qual;
+        la resta surten dels arbres de decisió (si hi són) o de la recepta senzilla."""
+        sortida = []
+        for idx in (0, 1):
+            nivell, recepta, X = self.feats_mercat(idx, clau, hora, dow, mes, n)
+            pred = recepta.copy()
+            model = self.models.get(idx)
+            if model is not None and len(X):
+                try:
+                    pred[3:] = np.clip(prediu_arbres(model, X), 0.05, 5.0)
+                except Exception:
+                    pass
+            out = pred * nivell
             for k in range(n):
                 v = self.mercat.get(clau + k)
                 if v is not None:
                     out[k] = v[idx]
-                    continue
-                hk, ck = self._hora_futura(hora, dow, k)
-                pred = perfil[ck][hk] * nivell
-                ahir = self.mercat.get(clau + k - 24)
-                if ahir is not None:
-                    pred = self.pes_ahir * ahir[idx] + (1 - self.pes_ahir) * pred
-                out[k] = pred
-        return co2, preu
+            sortida.append(out)
+        return sortida[0], sortida[1]
 
     def prediu_consum(self, clau, hora, dow, n):
         perfil = PARAMS["perfil_consum"]
