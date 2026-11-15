@@ -21,3 +21,11 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Fitxers que generen els scripts d'entrenament de la vlineaE1 (es refan amb construir_vlineaE1.sh)
+entrenament/vlineal/*/ag_tot/
+entrenament/vlineal/*/art/
+entrenament/vlineal/*/data/
+entrenament/vlineal/2_historial/out/
+entrenament/vlineal/sortida/
+entrenament/vlineal/construir.log
